@@ -33,9 +33,11 @@ services:
       dockerfile: deploy/Caddy.Dockerfile
     restart: unless-stopped
     ports:
-      - '80:80'
-      - '443:443'
-      - '443:443/udp'
+      # Defaults take the standard ports. Behind another proxy on the same server,
+      # set CADDY_BIND=127.0.0.1 and CADDY_HTTP_PORT / CADDY_HTTPS_PORT in .env.
+      - '${CADDY_BIND:-0.0.0.0}:${CADDY_HTTP_PORT:-80}:80'
+      - '${CADDY_BIND:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443'
+      - '${CADDY_BIND:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443/udp'
     environment:
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
       HETZNER_API_TOKEN: ${HETZNER_API_TOKEN:?set HETZNER_API_TOKEN in .env}

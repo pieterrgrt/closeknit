@@ -25,8 +25,14 @@ closeknit.eu, *.closeknit.eu {
 	}
 }
 
-# Other domains forward to the main one. These names get their own ordinary
-# certificate (HTTP challenge), so they must point at this server.
+# Other domains forward to the main one. They use the DNS challenge as well, so
+# issuing certificates never needs inbound access on port 80 or 443. Both zones
+# must be reachable with the same API token (same Hetzner project).
 closeknit.nl, www.closeknit.nl {
+	tls {
+		dns hetzner {env.HETZNER_API_TOKEN}
+		propagation_delay 30s
+	}
+
 	redir https://closeknit.eu{uri} permanent
 }

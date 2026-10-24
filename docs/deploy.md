@@ -125,6 +125,17 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db \
 
 Try a restore on a spare machine before you rely on it. Scheduled backups with monitoring belong to milestone M5; this is the minimum until then.
 
+## Behind an existing proxy
+
+If another proxy on the same server already uses ports 80 and 443, run Caddy on other ports and let that proxy pass Closeknit traffic on.
+
+1. In `.env`, uncomment `CADDY_BIND=127.0.0.1`, `CADDY_HTTP_PORT=8080` and `CADDY_HTTPS_PORT=8443`. Caddy is then reachable from the server itself only.
+2. Caddy keeps handling its own certificates, through the DNS challenge, so nothing needs to reach it from outside for that.
+3. Configure your proxy to send **TLS traffic for `closeknit.eu` and `*.closeknit.eu` (and `closeknit.nl`, `www.closeknit.nl`) unchanged to `127.0.0.1:8443`**. This is called TLS passthrough or SNI routing: the proxy looks at the domain name in the handshake and does not decrypt. Plain HTTP for those names goes to `127.0.0.1:8080`, where Caddy redirects it to HTTPS.
+4. Terminating TLS in the other proxy instead does not work well here: it would need its own wildcard certificate.
+
+Known costs of this setup: Caddy sees your proxy's address instead of the visitor's (unless the proxy speaks the PROXY protocol), which matters for rate limiting in M1, and HTTP/3 does not pass through.
+
 ## Another DNS provider
 
 The wildcard certificate needs a DNS provider that Caddy has a plugin for ([list](https://github.com/caddy-dns)). To switch:
