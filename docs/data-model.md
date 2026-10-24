@@ -1,6 +1,6 @@
-# Data model (proposal, awaiting approval)
+# Data model
 
-This is the proposed data model for milestones M1 to M4. It follows the first draft in the build brief and adds what federation and privacy need from the start. Nothing beyond `groups` exists in the database yet; the decisions marked **Decision** need approval before M1 starts, because they are hard to change later.
+This is the proposed data model for milestones M1 to M4. It follows the first draft in the build brief and adds what federation and privacy need from the start. Tables land milestone by milestone; M0 only has `groups`. The decisions below were approved on 2026-10-24.
 
 ## Conventions
 
@@ -55,14 +55,14 @@ This is the proposed data model for milestones M1 to M4. It follows the first dr
 | `tombstones`            | ap_id, group_id, deleted_at                                      | Remembers deleted content so a `Delete` can be re-sent and late copies refused. |
 | `federation_deliveries` | handled by the job queue (pg-boss)                               | No table of our own.                                                            |
 
-## Decisions needed
+## Decisions (approved 2026-10-24)
 
-1. **Authors are actors, not users.** Content points to `actors`, so a post from a member on another server and a post from a local member look the same. This costs one join but avoids a large migration in M4. _Recommended._
+1. **Authors are actors, not users.** Content points to `actors`, so a post from a member on another server and a post from a local member look the same. This costs one join but avoids a large migration in M4. **Chosen.**
 
-2. **IDs: UUIDv7, generated in the app.** Time-ordered IDs keep indexes compact and make cursors simple. PostgreSQL 17 cannot generate them, so the app does; v4 stays possible for rows created in SQL. _Recommended._
+2. **IDs: UUIDv7, generated in the app.** Time-ordered IDs keep indexes compact and make cursors simple. PostgreSQL 17 cannot generate them, so the app does; v4 stays possible for rows created in SQL. **Chosen.**
 
-3. **What RLS enforces.** Option A (built in M0): RLS isolates groups; the app checks membership and role, then sets the group context. Option B: RLS also checks that `app.current_user_id()` is an active member of the group, which doubles the protection but makes every query join on `memberships` and complicates joining and invite flows. _Recommended: A, with B added for the most sensitive tables (messages, members) if wanted._
+3. **What RLS enforces.** Option A (built in M0): RLS isolates groups; the app checks membership and role, then sets the group context. Option B: RLS also checks that `app.current_user_id()` is an active member of the group, which doubles the protection but makes every query join on `memberships` and complicates joining and invite flows. **Chosen: A**; B can still be added for the most sensitive tables (messages, members).
 
-4. **Deleting.** Content is deleted for real (hard delete), plus a small `tombstones` row with only the `ap_id` for federation. No hidden "soft delete" that keeps the text. _Recommended, in line with data minimisation._
+4. **Deleting.** Content is deleted for real (hard delete), plus a small `tombstones` row with only the `ap_id` for federation. No hidden "soft delete" that keeps the text. **Chosen.**
 
-5. **Names.** `display_name` is global; `real_name` is optional and shown only in groups that require real names. A group that requires real names asks for it on joining. _Recommended._ Alternative: a display name per group, which is more flexible but makes mentions and federation identities harder to follow.
+5. **Names.** `display_name` is global; `real_name` is optional and shown only in groups that require real names. A group that requires real names asks for it on joining. **Chosen.**
