@@ -40,7 +40,8 @@ services:
       - '${CADDY_BIND:-0.0.0.0}:${CADDY_HTTPS_PORT:-443}:443/udp'
     environment:
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
-      HETZNER_API_TOKEN: ${HETZNER_API_TOKEN:?set HETZNER_API_TOKEN in .env}
+      DNS_PROVIDER: ${DNS_PROVIDER:?set DNS_PROVIDER in .env (infomaniak or hetzner)}
+      DNS_API_TOKEN: ${DNS_API_TOKEN:?set DNS_API_TOKEN in .env}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
       # The certificates live here; losing them means asking Let's Encrypt again.

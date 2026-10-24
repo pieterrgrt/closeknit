@@ -12,7 +12,7 @@ internet ──443──> caddy ──> web (SvelteKit) ──> db (PostgreSQL 1
             certificates (Let's Encrypt)     migrate (runs once per deploy)
 ```
 
-- **caddy** terminates HTTPS and is the only container with published ports (80, 443). It is built with a DNS plugin, because a wildcard certificate (`*.closeknit.eu`) can only be issued through a DNS challenge.
+- **caddy** terminates HTTPS and is the only container with published ports (80, 443). It is built with DNS plugins (Infomaniak and Hetzner), because a wildcard certificate (`*.closeknit.eu`) can only be issued through a DNS challenge.
 - **web** and **db** have no published ports; they are reachable from other containers only.
 - **migrate** applies database migrations as the owner role and provisions the restricted app role, then exits. The app refuses to start if its role could bypass Row Level Security.
 
@@ -21,8 +21,8 @@ The files: `docker-compose.yml` (base), `docker-compose.prod.yml` (production ov
 ## 1. Domains and DNS
 
 1. Register `closeknit.eu` and `closeknit.nl` on the name of Aldus Lab, with a shared mailbox as contact so the stichting can take over later.
-2. Put the DNS of both domains on **Hetzner DNS** (free): set the nameservers at the registrar to the ones Hetzner shows you.
-3. Create these records. Find the addresses of your server in the Hetzner Cloud console.
+2. Decide where the DNS is hosted, that is, which nameservers the domains use. closeknit.eu uses **Infomaniak** (the registrar's own DNS); **Hetzner DNS** works as well. Check with `resolvectl query --type=NS closeknit.eu`. The records and the API token below must be at that same place, or the certificate challenge cannot be answered.
+3. Create these records there. Find the addresses of your server in the Hetzner Cloud console.
 
 | Name               | Type       | Value                                                            |
 | ------------------ | ---------- | ---------------------------------------------------------------- |
@@ -36,18 +36,21 @@ The files: `docker-compose.yml` (base), `docker-compose.prod.yml` (production ov
 
 Always create both A and AAAA: many mobile and student networks still lack IPv6, and some are IPv6-only.
 
-4. Create an **API token** that may edit the DNS zone of `closeknit.eu`. Caddy uses it to answer the certificate challenge; it never reaches the app.
-   - In the [Hetzner Console](https://console.hetzner.com), open the **project** that holds the DNS zone, then _Security_, _API tokens_, _Generate API token_.
-   - Give it a name (for example `caddy-closeknit`) and **Read & Write** permission, and copy the token right away: it is shown only once.
-   - Put it in `.env` as `HETZNER_API_TOKEN`. Anyone with this token can change your DNS, so keep it out of git and chat.
+4. Create an **API token** that may edit the DNS zones, and put it in `.env` as `DNS_API_TOKEN`, with `DNS_PROVIDER` set to `infomaniak` or `hetzner`. Caddy uses it to answer the certificate challenge; it never reaches the app. Anyone with this token can change your DNS, so keep it out of git and chat.
 
-> **Console DNS versus the old DNS Console.** The build uses `caddy-dns/hetzner/v2`, which talks to the DNS of the new Hetzner Console (Cloud API). If your zones still live in the old `dns.hetzner.com` console, a token from there does not work with v2. Either move the zones to the Console, or build with the v1 plugin: `DNS_PLUGIN=github.com/caddy-dns/hetzner` (see "Another DNS provider" below). Test a token before the first deploy:
->
-> ```sh
-> curl -sS -H "Authorization: Bearer $HETZNER_API_TOKEN" https://api.hetzner.cloud/v1/zones | head -c 300
-> ```
->
-> A list of zones means it works; an `unauthorized` error means the token is wrong or from the other system.
+   **Infomaniak:** in the Manager, open [API tokens](https://manager.infomaniak.com/v3/infomaniak-api), create a token with the scopes `domain:read`, `dns:read` and `dns:write`, and copy it right away. Test it:
+
+   ```sh
+   curl -sS -H "Authorization: Bearer $DNS_API_TOKEN" https://api.infomaniak.com/2/domains/closeknit.eu/zones | head -c 300
+   ```
+
+   **Hetzner:** in the [Hetzner Console](https://console.hetzner.com), open the **project** that holds the DNS zone, then _Security_, _API tokens_, _Generate API token_ with **Read & Write**. The build uses `caddy-dns/hetzner/v2`, which talks to the Console's Cloud DNS API; tokens and zones of the old `dns.hetzner.com` console do not work with it. Test it:
+
+   ```sh
+   curl -sS -H "Authorization: Bearer $DNS_API_TOKEN" https://api.hetzner.cloud/v1/zones | head -c 300
+   ```
+
+   A JSON answer that mentions your domain means the token works; `unauthorized` or `forbidden` means the token or its rights are wrong.
 
 ## 2. The server
 
@@ -200,11 +203,19 @@ sudo tail -n 3 /var/log/nginx/access.log           # visitor addresses, not 127.
 
 ## Troubleshooting the certificate
 
-If Caddy logs `adding temporary record for zone` errors, `deploy/dns-probe` reproduces what Caddy's DNS plugin does and prints every request and response to the Hetzner API, with the token removed. It adds and deletes one TXT record, `_ck-probe`, per zone.
+First check that the image really contains the plugin you expect, since an interrupted build leaves the old image running:
+
+```sh
+sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T caddy caddy build-info | grep caddy-dns
+```
+
+Then check that the domain's nameservers are where your token works (`resolvectl query --type=NS closeknit.eu`). A record created at the wrong DNS host is never seen by Let's Encrypt, and Caddy then times out waiting for it.
+
+For Hetzner DNS, if Caddy logs `adding temporary record for zone` errors, `deploy/dns-probe` reproduces what Caddy's DNS plugin does and prints every request and response to the Hetzner API, with the token removed. It adds and deletes one TXT record, `_ck-probe`, per zone.
 
 ```sh
 cd /opt/closeknit
-export HETZNER_API_TOKEN=$(sudo grep '^HETZNER_API_TOKEN=' .env | cut -d= -f2-)
+export HETZNER_API_TOKEN=$(sudo grep '^DNS_API_TOKEN=' .env | cut -d= -f2-)
 sudo -E docker run --rm -e HETZNER_API_TOKEN -v $PWD/deploy/dns-probe:/p -w /p caddy:2-builder \
   go run . closeknit.eu. closeknit.nl. > /tmp/dns-probe.txt 2>&1
 unset HETZNER_API_TOKEN
@@ -217,9 +228,14 @@ Add `-burst` instead of the zone names to fire the calls in parallel, the way Ca
 
 The wildcard certificate needs a DNS provider that Caddy has a plugin for ([list](https://github.com/caddy-dns)). To switch:
 
-1. Change the plugin in the build: `args: { DNS_PLUGIN: github.com/caddy-dns/<provider> }` under `caddy.build` in `docker-compose.prod.yml`.
-2. Change the `dns hetzner …` line in `deploy/Caddyfile` to the provider's name and its settings.
-3. Replace `HETZNER_API_TOKEN` in `.env` and in the `caddy` service with the variables that provider needs.
+- **Infomaniak or Hetzner:** set `DNS_PROVIDER` and `DNS_API_TOKEN` in `.env` and recreate Caddy (`up -d --force-recreate caddy`). Both plugins are already in the image.
+- **Another provider:** add its module to `DNS_PLUGINS` in `deploy/Caddy.Dockerfile` and rebuild. If it takes a single token argument, `DNS_PROVIDER` and `DNS_API_TOKEN` are enough; otherwise adjust the `dns` lines in `deploy/Caddyfile`.
+
+Building Caddy compiles it from source and takes several minutes on a small server; the output stays on the `go build` line meanwhile. Run it in the background so a closed terminal does not stop it:
+
+```sh
+nohup sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml build caddy > /tmp/caddy-build.log 2>&1 &
+```
 
 Prefer a provider under European jurisdiction, in line with the sovereignty principles of the project.
 
