@@ -6,7 +6,7 @@
 version = 1
 
 [[annotations]]
-path = ["**/*.json", "**/*.md", "pnpm-lock.yaml", "packages/db/migrations/meta/**", "**/go.mod", "**/go.sum"]
+path = ["**/*.json", "**/*.md", "pnpm-lock.yaml", "packages/db/migrations/meta/**", "**/go.mod", "**/go.sum", "apps/web/static/*.png", "apps/web/static/*.ico"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Aldus Lab and Closeknit contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
