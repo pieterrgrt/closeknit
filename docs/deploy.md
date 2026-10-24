@@ -132,7 +132,7 @@ If nginx on the same server already uses ports 80 and 443, nginx keeps those por
 This changes how your existing sites listen on 443, so they briefly restart. The configuration in `deploy/nginx/` was tested in an nginx container: routing by name (also upper case and look-alike names such as `notcloseknit.eu`), and visitors' addresses reach your existing sites unchanged. It was not tested against your actual sites, so work through it with the backup at hand.
 
 ```
-visitor ──443──> nginx stream (SNI) ──closeknit.eu, *.closeknit.eu, …──> Caddy 127.0.0.1:8443
+visitor ──443──> nginx stream (SNI) ──closeknit.eu, *.closeknit.eu, …──> Caddy 127.0.0.1:18443
                                     └─everything else (PROXY protocol)──> your sites 127.0.0.1:8444
 visitor ──80───> nginx http  ──closeknit names──> 301 to https; your other sites as before
 ```
@@ -146,7 +146,7 @@ sudo apt install libnginx-mod-stream                       # if the stream modul
 sudo grep -rnE 'listen.*443' /etc/nginx/                   # every place that must change (step 3)
 ```
 
-**2. Caddy on other ports.** In `.env` on the server, uncomment `CADDY_BIND=127.0.0.1`, `CADDY_HTTP_PORT=8080`, `CADDY_HTTPS_PORT=8443`, and start the stack as usual. Caddy asks for its certificates through DNS, so it needs nothing from outside yet.
+**2. Caddy on other ports.** In `.env` on the server, uncomment `CADDY_BIND=127.0.0.1`, `CADDY_HTTP_PORT=18080`, `CADDY_HTTPS_PORT=18443` (8080 and 8443 are often taken, for example by Nextcloud AIO; check with `sudo ss -tlnp`), and start the stack as usual. Caddy asks for its certificates through DNS, so it needs nothing from outside yet.
 
 **3. Move your existing sites off port 443.** In each site that has a `listen ... 443` line:
 
