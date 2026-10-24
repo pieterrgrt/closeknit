@@ -20,7 +20,12 @@ export default defineConfig({
 				directives: {
 					'default-src': ['self'],
 					'script-src': ['self'],
-					'style-src': ['self'],
+					// The one inline style SvelteKit renders: its route announcer for screen readers.
+					'style-src': [
+						'self',
+						'unsafe-hashes',
+						'sha256-S8qMpvofolR8Mpjy4kQvEm7m1q8clzU4dfDH0AmvZjo='
+					],
 					'img-src': ['self', 'data:', 'blob:'],
 					'font-src': ['self'],
 					'connect-src': ['self'],

@@ -11,7 +11,11 @@ export const init: ServerInit = async () => {
 };
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const response = await resolve(event);
+	// Until i18n lands in M1, the demo is Dutch and everything else English.
+	const lang = event.url.pathname.startsWith('/demo') ? 'nl' : 'en';
+	const response = await resolve(event, {
+		transformPageChunk: ({ html }) => html.replace('%lang%', lang)
+	});
 	applySecurityHeaders(response.headers);
 	return response;
 };

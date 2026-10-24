@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 <!doctype html>
-<html lang="en">
+<html lang="%lang%" data-accent="groen">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -12,6 +12,6 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
-		<div style="display: contents">%sveltekit.body%</div>
+		<div class="app-root">%sveltekit.body%</div>
 	</body>
 </html>

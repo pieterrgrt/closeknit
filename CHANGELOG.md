@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Clickable demo at `/demo` with sample data for one building: overview, notice board, chat per floor with threads, calendar with sign-ups, lending corner, poll and the sign-in screen. Light and dark theme, five group accents, Instrument Sans (self-hosted) and the Closeknit logo. Nothing is stored; the home page opens the demo for now.
 - Monorepo with the SvelteKit app (`apps/web`) and the database package (`packages/db`).
 - PostgreSQL schema with Drizzle migrations and a `groups` table.
 - Tenant isolation with Row Level Security: a restricted app role, a per-transaction group context and a slug lookup that works before any context exists.

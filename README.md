@@ -22,7 +22,7 @@ With Docker:
 docker compose up
 ```
 
-Then open <http://localhost:3000>. The `migrate` service creates the schema and the restricted database role before the app starts.
+Then open <http://localhost:3000>, which shows the clickable demo for now. The `migrate` service creates the schema and the restricted database role before the app starts.
 
 For development you need Node.js 22.18 or later, pnpm 10 (`corepack enable`) and PostgreSQL 16 or later:
 
