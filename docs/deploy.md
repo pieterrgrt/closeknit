@@ -198,6 +198,19 @@ sudo tail -n 3 /var/log/nginx/access.log           # visitor addresses, not 127.
 
 **Known costs:** Caddy does not see the visitor's address (nginx strips the PROXY header for it), which matters for rate limiting in M1; and HTTP/3 does not pass through. Both can be solved later if needed.
 
+## Troubleshooting the certificate
+
+If Caddy logs `adding temporary record for zone` errors, `deploy/dns-probe` reproduces what Caddy's DNS plugin does and prints every request and response to the Hetzner API, with the token removed. It adds and deletes one TXT record, `_ck-probe`, per zone.
+
+```sh
+cd /opt/closeknit
+export HETZNER_API_TOKEN=$(sudo grep '^HETZNER_API_TOKEN=' .env | cut -d= -f2-)
+sudo -E docker run --rm -e HETZNER_API_TOKEN -v $PWD/deploy/dns-probe:/p -w /p caddy:2-builder \
+  go run . closeknit.eu. closeknit.nl. > /tmp/dns-probe.txt 2>&1
+unset HETZNER_API_TOKEN
+grep -E '^(=====|POST|GET|DELETE|HTTP/|Content-Type|<)' /tmp/dns-probe.txt
+```
+
 ## Another DNS provider
 
 The wildcard certificate needs a DNS provider that Caddy has a plugin for ([list](https://github.com/caddy-dns)). To switch:
