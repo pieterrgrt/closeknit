@@ -9,7 +9,7 @@
 ARG CADDY_VERSION=2
 
 FROM caddy:${CADDY_VERSION}-builder AS build
-ARG DNS_PLUGIN=github.com/caddy-dns/hetzner
+ARG DNS_PLUGIN=github.com/caddy-dns/hetzner/v2
 RUN xcaddy build --with ${DNS_PLUGIN}
 
 FROM caddy:${CADDY_VERSION}-alpine

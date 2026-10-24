@@ -10,6 +10,7 @@
 closeknit.eu, *.closeknit.eu {
 	tls {
 		dns hetzner {env.HETZNER_API_TOKEN}
+		propagation_delay 30s
 	}
 
 	@www host www.closeknit.eu

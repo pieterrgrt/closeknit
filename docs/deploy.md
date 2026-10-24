@@ -36,9 +36,18 @@ The files: `docker-compose.yml` (base), `docker-compose.prod.yml` (production ov
 
 Always create both A and AAAA: many mobile and student networks still lack IPv6, and some are IPv6-only.
 
-4. Create an **API token** for the DNS zone of `closeknit.eu` (Hetzner console, security, API tokens). Caddy uses it to answer the certificate challenge; it never reaches the app.
+4. Create an **API token** that may edit the DNS zone of `closeknit.eu`. Caddy uses it to answer the certificate challenge; it never reaches the app.
+   - In the [Hetzner Console](https://console.hetzner.com), open the **project** that holds the DNS zone, then _Security_, _API tokens_, _Generate API token_.
+   - Give it a name (for example `caddy-closeknit`) and **Read & Write** permission, and copy the token right away: it is shown only once.
+   - Put it in `.env` as `HETZNER_API_TOKEN`. Anyone with this token can change your DNS, so keep it out of git and chat.
 
-> The DNS plugin (`caddy-dns/hetzner`) must match the kind of token your Hetzner account issues. If Caddy logs authentication errors from the DNS provider, check the plugin's README and, if needed, build with another version or provider (see "Another DNS provider" below).
+> **Console DNS versus the old DNS Console.** The build uses `caddy-dns/hetzner/v2`, which talks to the DNS of the new Hetzner Console (Cloud API). If your zones still live in the old `dns.hetzner.com` console, a token from there does not work with v2. Either move the zones to the Console, or build with the v1 plugin: `DNS_PLUGIN=github.com/caddy-dns/hetzner` (see "Another DNS provider" below). Test a token before the first deploy:
+>
+> ```sh
+> curl -sS -H "Authorization: Bearer $HETZNER_API_TOKEN" https://api.hetzner.cloud/v1/zones | head -c 300
+> ```
+>
+> A list of zones means it works; an `unauthorized` error means the token is wrong or from the other system.
 
 ## 2. The server
 
