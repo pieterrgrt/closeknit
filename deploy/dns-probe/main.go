@@ -5,6 +5,10 @@
 // way Caddy's ACME solver does, and prints every HTTP request and response with
 // the API token removed. It adds and deletes one TXT record, _ck-probe, per zone.
 //
+// With -burst it fires the calls at the same moment instead, as Caddy does when it
+// requests several certificates at once (closeknit.eu and *.closeknit.eu even write
+// to the same record).
+//
 // See "Troubleshooting the certificate" in docs/deploy.md.
 package main
 
@@ -16,6 +20,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/libdns/hetzner/v2"
@@ -27,11 +32,15 @@ var bearer = regexp.MustCompile(`(?i)(authorization: bearer )\S+`)
 // logTransport prints requests and responses; the token never reaches stdout.
 type logTransport struct{ next http.RoundTripper }
 
+var printMu sync.Mutex
+
 func (t logTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if dump, err := httputil.DumpRequestOut(req, true); err == nil {
-		fmt.Printf("--- request\n%s\n", bearer.ReplaceAll(dump, []byte("${1}***")))
-	}
+	reqDump, _ := httputil.DumpRequestOut(req, true)
 	resp, err := t.next.RoundTrip(req)
+
+	printMu.Lock()
+	defer printMu.Unlock()
+	fmt.Printf("--- request\n%s\n", bearer.ReplaceAll(reqDump, []byte("${1}***")))
 	if err != nil {
 		fmt.Printf("--- transport error: %v\n", err)
 		return nil, err
@@ -45,6 +54,46 @@ func (t logTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+// burst mimics Caddy obtaining closeknit.eu, *.closeknit.eu, closeknit.nl and
+// www.closeknit.nl at once: one provider per site block, four calls in parallel.
+func burst(token string) {
+	eu, nl := hetzner.New(token), hetzner.New(token)
+	calls := []struct {
+		p    *hetzner.Provider
+		zone string
+		name string
+	}{
+		{eu, "closeknit.eu.", "_ck-probe"},
+		{eu, "closeknit.eu.", "_ck-probe"},
+		{nl, "closeknit.nl.", "_ck-probe"},
+		{nl, "closeknit.nl.", "_ck-probe.www"},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for i, c := range calls {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := libdns.TXT{Name: c.name, Text: fmt.Sprintf("probe-%d", i)}
+			_, err := c.p.AppendRecords(ctx, c.zone, []libdns.Record{rec})
+			printMu.Lock()
+			fmt.Printf("===== burst %d %s %s: AppendRecords error: %v\n", i, c.zone, c.name, err)
+			printMu.Unlock()
+		}()
+	}
+	wg.Wait()
+
+	// Clean up whatever was created in the zone we own.
+	for i := range 2 {
+		rec := libdns.TXT{Name: "_ck-probe", Text: fmt.Sprintf("probe-%d", i)}
+		_, err := eu.DeleteRecords(ctx, "closeknit.eu.", []libdns.Record{rec})
+		fmt.Printf("===== burst cleanup %d: DeleteRecords error: %v\n", i, err)
+	}
+}
+
 func main() {
 	token := os.Getenv("HETZNER_API_TOKEN")
 	if token == "" {
@@ -52,6 +101,11 @@ func main() {
 		os.Exit(1)
 	}
 	http.DefaultTransport = logTransport{http.DefaultTransport}
+
+	if len(os.Args) > 1 && os.Args[1] == "-burst" {
+		burst(token)
+		return
+	}
 
 	zones := os.Args[1:]
 	if len(zones) == 0 {

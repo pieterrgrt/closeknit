@@ -211,6 +211,8 @@ unset HETZNER_API_TOKEN
 grep -E '^(=====|POST|GET|DELETE|HTTP/|Content-Type|<)' /tmp/dns-probe.txt
 ```
 
+Add `-burst` instead of the zone names to fire the calls in parallel, the way Caddy does when it requests several certificates at once.
+
 ## Another DNS provider
 
 The wildcard certificate needs a DNS provider that Caddy has a plugin for ([list](https://github.com/caddy-dns)). To switch:
