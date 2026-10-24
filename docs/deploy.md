@@ -125,16 +125,78 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T db \
 
 Try a restore on a spare machine before you rely on it. Scheduled backups with monitoring belong to milestone M5; this is the minimum until then.
 
-## Behind an existing proxy
+## Behind an existing nginx
 
-If another proxy on the same server already uses ports 80 and 443, run Caddy on other ports and let that proxy pass Closeknit traffic on.
+If nginx on the same server already uses ports 80 and 443, nginx keeps those ports and passes Closeknit's TLS traffic to Caddy **without decrypting it**, so Caddy keeps handling its own certificates (including the wildcard). nginx looks at the domain name in the TLS handshake (SNI) and chooses: Closeknit names go to Caddy, everything else goes to your existing sites.
 
-1. In `.env`, uncomment `CADDY_BIND=127.0.0.1`, `CADDY_HTTP_PORT=8080` and `CADDY_HTTPS_PORT=8443`. Caddy is then reachable from the server itself only.
-2. Caddy keeps handling its own certificates, through the DNS challenge, so nothing needs to reach it from outside for that.
-3. Configure your proxy to send **TLS traffic for `closeknit.eu` and `*.closeknit.eu` (and `closeknit.nl`, `www.closeknit.nl`) unchanged to `127.0.0.1:8443`**. This is called TLS passthrough or SNI routing: the proxy looks at the domain name in the handshake and does not decrypt. Plain HTTP for those names goes to `127.0.0.1:8080`, where Caddy redirects it to HTTPS.
-4. Terminating TLS in the other proxy instead does not work well here: it would need its own wildcard certificate.
+This changes how your existing sites listen on 443, so they briefly restart. The configuration in `deploy/nginx/` was tested in an nginx container: routing by name (also upper case and look-alike names such as `notcloseknit.eu`), and visitors' addresses reach your existing sites unchanged. It was not tested against your actual sites, so work through it with the backup at hand.
 
-Known costs of this setup: Caddy sees your proxy's address instead of the visitor's (unless the proxy speaks the PROXY protocol), which matters for rate limiting in M1, and HTTP/3 does not pass through.
+```
+visitor ──443──> nginx stream (SNI) ──closeknit.eu, *.closeknit.eu, …──> Caddy 127.0.0.1:8443
+                                    └─everything else (PROXY protocol)──> your sites 127.0.0.1:8444
+visitor ──80───> nginx http  ──closeknit names──> 301 to https; your other sites as before
+```
+
+**1. Prepare**
+
+```sh
+sudo cp -a /etc/nginx /etc/nginx.bak-$(date +%F)          # your way back
+nginx -V 2>&1 | tr ' ' '\n' | grep -E 'stream'            # needs stream and stream_ssl_preread
+sudo apt install libnginx-mod-stream                       # if the stream module is missing
+sudo grep -rnE 'listen.*443' /etc/nginx/                   # every place that must change (step 3)
+```
+
+**2. Caddy on other ports.** In `.env` on the server, uncomment `CADDY_BIND=127.0.0.1`, `CADDY_HTTP_PORT=8080`, `CADDY_HTTPS_PORT=8443`, and start the stack as usual. Caddy asks for its certificates through DNS, so it needs nothing from outside yet.
+
+**3. Move your existing sites off port 443.** In each site that has a `listen ... 443` line:
+
+- `listen 443 ssl ...;` becomes `listen 127.0.0.1:8444 ssl proxy_protocol ...;` (keep the other parameters such as `http2` or `default_server`).
+- Delete `listen [::]:443 ssl ...;`. IPv6 visitors now arrive through the new front on 443 as well.
+
+Then tell nginx to read the visitor's address from the PROXY header, once, in `/etc/nginx/conf.d/realip.conf`:
+
+```nginx
+set_real_ip_from 127.0.0.1;
+real_ip_header proxy_protocol;
+```
+
+Certbot keeps working (it validates over port 80), but if you let `certbot --nginx` install a certificate in a new site, check afterwards that it did not add a plain `listen 443`.
+
+**4. Add the front on 443 and the redirect on 80**
+
+```sh
+sudo mkdir -p /etc/nginx/stream.d
+sudo cp deploy/nginx/stream.conf /etc/nginx/stream.d/closeknit.conf
+sudo cp deploy/nginx/closeknit-http.conf /etc/nginx/conf.d/closeknit.conf
+```
+
+Add this to `/etc/nginx/nginx.conf` at the top level, next to the `http { ... }` block (not inside it):
+
+```nginx
+stream {
+    include /etc/nginx/stream.d/*.conf;
+}
+```
+
+**5. Switch**
+
+```sh
+sudo nginx -t && sudo systemctl restart nginx
+```
+
+Use `restart`, not `reload`: port 443 changes owner from the `http` to the `stream` module, and a restart avoids a clash. Your other sites are unavailable for a few seconds.
+
+**6. Check**
+
+```sh
+curl -sSI https://closeknit.eu/ | head -3          # served by Caddy
+curl -sSI https://een-van-je-andere-sites.nl/ | head -3
+sudo tail -n 3 /var/log/nginx/access.log           # visitor addresses, not 127.0.0.1
+```
+
+**Back out:** `sudo rm -r /etc/nginx && sudo cp -a /etc/nginx.bak-<date> /etc/nginx && sudo systemctl restart nginx`.
+
+**Known costs:** Caddy does not see the visitor's address (nginx strips the PROXY header for it), which matters for rate limiting in M1; and HTTP/3 does not pass through. Both can be solved later if needed.
 
 ## Another DNS provider
 
