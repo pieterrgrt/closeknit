@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792866819288,
+      "tag": "0000_roles_and_context",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792866820181,
+      "tag": "0001_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792866820927,
+      "tag": "0002_group_lookup",
+      "breakpoints": true
+    }
+  ]
+}

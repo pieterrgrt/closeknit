@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Licensing for files that cannot carry a comment header.
+# See https://reuse.software/spec/
+version = 1
+
+[[annotations]]
+path = ["**/*.json", "**/*.md", "pnpm-lock.yaml", "packages/db/migrations/meta/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Aldus Lab and Closeknit contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"

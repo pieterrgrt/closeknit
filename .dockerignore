@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+**/node_modules
+**/build
+**/dist
+**/.svelte-kit
+**/test-results
+**/playwright-report
+**/.env
+.git

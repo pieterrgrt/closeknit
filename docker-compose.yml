@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Local development and self-hosting: `docker compose up`, then open http://localhost:3000.
+# Override the passwords in a `.env` file next to this one before exposing it anywhere.
+
+name: closeknit
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: closeknit
+      POSTGRES_USER: closeknit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-closeknit}
+    ports:
+      # Only reachable from this machine, for `pnpm dev` and `pnpm db:migrate`.
+      - '127.0.0.1:${DB_PORT:-5432}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U closeknit -d closeknit']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies migrations as the owner and provisions the restricted app role, then exits.
+  migrate:
+    build: .
+    command: ['node', 'node_modules/@closeknit/db/dist/migrate-cli.js']
+    environment: &database
+      DATABASE_OWNER_URL: postgres://closeknit:${POSTGRES_PASSWORD:-closeknit}@db:5432/closeknit
+      DATABASE_URL: postgres://closeknit_web:${APP_DB_PASSWORD:-closeknit-web}@db:5432/closeknit
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      DATABASE_URL: postgres://closeknit_web:${APP_DB_PASSWORD:-closeknit-web}@db:5432/closeknit
+      ORIGIN: ${ORIGIN:-http://localhost:3000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  db-data:

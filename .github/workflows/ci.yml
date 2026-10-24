@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: closeknit
+          POSTGRES_PASSWORD: closeknit
+          POSTGRES_DB: closeknit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U closeknit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://closeknit:closeknit@localhost:5432/postgres
+      DATABASE_OWNER_URL: postgres://closeknit:closeknit@localhost:5432/closeknit
+      DATABASE_URL: postgres://closeknit_web:closeknit-web@localhost:5432/closeknit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit and database tests
+        run: pnpm test
+      - name: Migrate the end-to-end database
+        run: pnpm db:migrate
+      - run: pnpm --filter @closeknit/web exec playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start with Docker Compose
+        run: docker compose up -d --build --wait
+      - name: Health check
+        run: curl --fail --silent http://localhost:3000/healthz
+      - if: always()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down -v

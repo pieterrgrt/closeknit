@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+pnpm-lock.yaml
+LICENSE
+packages/db/migrations/meta
+.svelte-kit
+build
+dist

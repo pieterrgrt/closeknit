@@ -1,0 +1,33 @@
+{
+	"name": "closeknit",
+	"private": true,
+	"description": "A private, beautiful, open-source meeting place for buildings and other close-knit groups.",
+	"license": "AGPL-3.0-or-later",
+	"type": "module",
+	"packageManager": "pnpm@10.28.0",
+	"engines": {
+		"node": ">=22.18"
+	},
+	"scripts": {
+		"dev": "pnpm --filter @closeknit/web dev",
+		"build": "pnpm -r build",
+		"check": "pnpm -r check",
+		"lint": "prettier --check . && eslint . && node scripts/license-headers.js --check",
+		"format": "prettier --write . && node scripts/license-headers.js --fix",
+		"test": "pnpm -r test",
+		"test:e2e": "pnpm --filter @closeknit/web test:e2e",
+		"db:generate": "pnpm --filter @closeknit/db generate",
+		"db:migrate": "pnpm --filter @closeknit/db migrate"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"eslint": "^10.4.1",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "^3.19.0",
+		"globals": "^17.6.0",
+		"prettier": "^3.8.3",
+		"prettier-plugin-svelte": "^4.1.0",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.60.1"
+	}
+}
