@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Production on a single server, on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Needs the variables in deploy/env.example, in a `.env` next to this file.
+# See docs/deploy.md.
+
+services:
+  db:
+    # Reachable from the other containers only, not from the host.
+    ports: !reset []
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+
+  migrate:
+    environment:
+      DATABASE_OWNER_URL: postgres://closeknit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/closeknit
+      DATABASE_URL: postgres://closeknit_web:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/closeknit
+
+  web:
+    # Only Caddy talks to the app.
+    ports: !reset []
+    environment:
+      DATABASE_URL: postgres://closeknit_web:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}@db:5432/closeknit
+      ORIGIN: ${ORIGIN:-https://closeknit.eu}
+
+  caddy:
+    build:
+      context: .
+      dockerfile: deploy/Caddy.Dockerfile
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+      HETZNER_API_TOKEN: ${HETZNER_API_TOKEN:?set HETZNER_API_TOKEN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The certificates live here; losing them means asking Let's Encrypt again.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:

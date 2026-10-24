@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Aldus Lab and Closeknit contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+{
+	email {$ACME_EMAIL}
+}
+
+# The app: the apex and one subdomain per group (marchlewski63.closeknit.eu).
+# The wildcard certificate is issued through a DNS challenge.
+closeknit.eu, *.closeknit.eu {
+	tls {
+		dns hetzner {env.HETZNER_API_TOKEN}
+	}
+
+	@www host www.closeknit.eu
+	redir @www https://closeknit.eu{uri} permanent
+
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy web:3000 {
+		health_uri /healthz
+		health_interval 15s
+	}
+}
+
+# Other domains forward to the main one. These names get their own ordinary
+# certificate (HTTP challenge), so they must point at this server.
+closeknit.nl, www.closeknit.nl {
+	redir https://closeknit.eu{uri} permanent
+}

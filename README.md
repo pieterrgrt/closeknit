@@ -61,6 +61,10 @@ pnpm dev
 
 The app never connects as the schema owner. `DATABASE_OWNER_URL` runs migrations; `DATABASE_URL` is a restricted role that is subject to Row Level Security, so one group can never see another group's data, even through a bug in a query. The app refuses to start if its role could bypass RLS. See [docs/architecture.md](docs/architecture.md).
 
+## Deploying
+
+Production setup with HTTPS and a wildcard certificate per group on one server: see [docs/deploy.md](docs/deploy.md).
+
 ## Contributing
 
 Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md); every commit needs a `Signed-off-by` line under the Developer Certificate of Origin.
